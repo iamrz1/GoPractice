@@ -27,6 +27,6 @@ func main() {
 	//handleFunc("/route", associatedFunction)
 	http.HandleFunc("/hello", hello)
 
-	//http.ListenAndServe(":9000", nil)
+	http.ListenAndServe(":9000", nil)
 
 }
