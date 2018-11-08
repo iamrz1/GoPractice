@@ -27,10 +27,15 @@ type Book struct {
 
 var books []Book
 var router = mux.NewRouter()
+var ids map[int]int
+var count = 2
 
 func init() {
 	books = append(books, Book{ID: "1", Name: "Pride and Prejudice", Author: "Jane Austen", Count: 5})
 	books = append(books, Book{ID: "2", Name: "Things fall apart,", Author: "Chinua Achebe", Count: 9})
+	ids = make(map[int]int)
+	ids[1] = 1
+	ids[2] = 1
 
 	router.HandleFunc("/books", GetBooks).Methods("GET")
 	router.HandleFunc("/books/{id}", GetBook).Methods("GET")
@@ -41,27 +46,42 @@ func init() {
 // GetBooks : Display all books from the books variable
 func GetBooks(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(books)
+	//fmt.Println(w.Header)
 }
 
 // GetBook : get a single book by id
 func GetBook(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-
+	fmt.Println("mux id = ", vars["id"])
 	for _, item := range books {
 		if item.ID == vars["id"] {
-			json.NewEncoder(w).Encode(item)
+			fmt.Println("Match found")
+			var b []Book
+			b = append(b, item)
+			json.NewEncoder(w).Encode(b)
 			return
 		}
 	}
 	//if no match is found,
 	// return an empty book struct
-	json.NewEncoder(w).Encode(&Book{})
+	fmt.Println("This shoulnt be executed")
+
+	//json.NewEncoder(w).Encode(&Book{})
 }
 
 // CreateBook : create a new book entry
 func CreateBook(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Request recieved.")
-	// extrac variables/parameters from the request(JSON)
+	// extract id from URL
+	id, _ := strconv.Atoi(r.URL.Path[len("/books/"):])
+
+	if ids[id] == 1 {
+		fmt.Println("Duplicate Entry. ID = ", id, " exists")
+		json.NewEncoder(w).Encode(books)
+		return
+	}
+	count++
+	ids[count] = 1
+
 	vars := mux.Vars(r)
 	var book Book
 	// get the struct equivalent of the json
@@ -71,6 +91,7 @@ func CreateBook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+
 	book.ID = vars["id"]
 	//fmt.Println("Added ID = ", vars["id"])
 	//add the new entry to our existing book entries
@@ -85,9 +106,10 @@ func DeleteBook(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	fmt.Println("========", vars["id"])
 	fmt.Println("========", r.URL.Path)
-	id, idErr := strconv.Atoi(r.URL.Path[len("books/1"):])
+	id, idErr := strconv.Atoi(r.URL.Path[len("/books/"):])
+	fmt.Println("id = ", id)
 	if idErr != nil {
-		fmt.Errorf("URL Error.")
+		//w.Write("URL Error.")
 	}
 	for index, item := range books {
 		if item.ID == strconv.Itoa(id) {
