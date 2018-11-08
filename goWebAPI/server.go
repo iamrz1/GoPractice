@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 )
@@ -25,6 +26,17 @@ type Book struct {
 // }
 
 var books []Book
+var router = mux.NewRouter()
+
+func init() {
+	books = append(books, Book{ID: "1", Name: "Pride and Prejudice", Author: "Jane Austen", Count: 5})
+	books = append(books, Book{ID: "2", Name: "Things fall apart,", Author: "Chinua Achebe", Count: 9})
+
+	router.HandleFunc("/books", GetBooks).Methods("GET")
+	router.HandleFunc("/books/{id}", GetBook).Methods("GET")
+	router.HandleFunc("/books/{id}", CreateBook).Methods("POST")
+	router.HandleFunc("/books/{id}", DeleteBook).Methods("DELETE")
+}
 
 // GetBooks : Display all books from the books variable
 func GetBooks(w http.ResponseWriter, r *http.Request) {
@@ -68,24 +80,29 @@ func CreateBook(w http.ResponseWriter, r *http.Request) {
 
 // DeleteBook : Delete a book
 func DeleteBook(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(len(books))
+
 	vars := mux.Vars(r)
+	fmt.Println("========", vars["id"])
+	fmt.Println("========", r.URL.Path)
+	id, idErr := strconv.Atoi(r.URL.Path[len("books/1"):])
+	if idErr != nil {
+		fmt.Errorf("URL Error.")
+	}
 	for index, item := range books {
-		if item.ID == vars["id"] {
+		if item.ID == strconv.Itoa(id) {
+			fmt.Println("IDs are equal")
 			books = append(books[:index], books[index+1:]...)
 			break
 		}
-		json.NewEncoder(w).Encode(books)
+		// json.NewEncoder(w).Encode(books)
 	}
+	fmt.Println(len(books))
+	json.NewEncoder(w).Encode(books)
 }
 
 // main function to boot up everything
 func main() {
-	router := mux.NewRouter()
-	books = append(books, Book{ID: "1", Name: "Pride and Prejudice", Author: "Jane Austen", Count: 5})
-	books = append(books, Book{ID: "2", Name: "Things fall apart,", Author: "Chinua Achebe", Count: 9})
-	router.HandleFunc("/books", GetBooks).Methods("GET")
-	router.HandleFunc("/books/{id}", GetBook).Methods("GET")
-	router.HandleFunc("/books/{id}", CreateBook).Methods("POST")
-	router.HandleFunc("/books/{id}", DeleteBook).Methods("DELETE")
+
 	log.Fatal(http.ListenAndServe(":8000", router))
 }
