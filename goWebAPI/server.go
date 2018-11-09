@@ -71,18 +71,20 @@ func GetBook(w http.ResponseWriter, r *http.Request) {
 
 // CreateBook : create a new book entry
 func CreateBook(w http.ResponseWriter, r *http.Request) {
-	// extract id from URL
-	id, _ := strconv.Atoi(r.URL.Path[len("/books/"):])
-
-	if ids[id] == 1 {
-		fmt.Println("Duplicate Entry. ID = ", id, " exists")
+	// extract parameters from URL
+	vars := mux.Vars(r)
+	found := false
+	newKey := vars["id"]
+	newKeyInt, _ := strconv.Atoi(newKey)
+	if ids[newKeyInt] == 1 {
+		fmt.Println("Duplicate Found.")
 		json.NewEncoder(w).Encode(books)
+		found = true
 		return
 	}
+	fmt.Println("Found = ", found)
 	count++
 	ids[count] = 1
-
-	vars := mux.Vars(r)
 	var book Book
 	// get the struct equivalent of the json
 	//and save that to our book variable
@@ -96,30 +98,24 @@ func CreateBook(w http.ResponseWriter, r *http.Request) {
 	//fmt.Println("Added ID = ", vars["id"])
 	//add the new entry to our existing book entries
 	books = append(books, book)
+
 	json.NewEncoder(w).Encode(books)
 }
 
 // DeleteBook : Delete a book
 func DeleteBook(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(len(books))
-
+	// extract parameters from URL
 	vars := mux.Vars(r)
-	fmt.Println("========", vars["id"])
-	fmt.Println("========", r.URL.Path)
-	id, idErr := strconv.Atoi(r.URL.Path[len("/books/"):])
-	fmt.Println("id = ", id)
-	if idErr != nil {
-		//w.Write("URL Error.")
-	}
+	//Iterate over books to find the book by id
 	for index, item := range books {
-		if item.ID == strconv.Itoa(id) {
-			fmt.Println("IDs are equal")
+		if item.ID == vars["id"] {
+			//Delete the book with matching ID
 			books = append(books[:index], books[index+1:]...)
 			break
 		}
-		// json.NewEncoder(w).Encode(books)
 	}
-	fmt.Println(len(books))
+	w.Header().Get("301")
+
 	json.NewEncoder(w).Encode(books)
 }
 
