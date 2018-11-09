@@ -39,7 +39,8 @@ func init() {
 
 	router.HandleFunc("/books", GetBooks).Methods("GET")
 	router.HandleFunc("/books/{id}", GetBook).Methods("GET")
-	router.HandleFunc("/books/{id}", CreateBook).Methods("POST")
+	router.HandleFunc("/books", CreateBook).Methods("POST")
+	router.HandleFunc("/books/{id}", UpdateBook).Methods("UPDATE")
 	router.HandleFunc("/books/{id}", DeleteBook).Methods("DELETE")
 }
 
@@ -69,53 +70,78 @@ func GetBook(w http.ResponseWriter, r *http.Request) {
 	//json.NewEncoder(w).Encode(&Book{})
 }
 
-// CreateBook : create a new book entry
-func CreateBook(w http.ResponseWriter, r *http.Request) {
+// UpdateBook : create a new book entry
+func UpdateBook(w http.ResponseWriter, r *http.Request) {
+
 	// extract parameters from URL
 	vars := mux.Vars(r)
-	found := false
 	newKey := vars["id"]
 	newKeyInt, _ := strconv.Atoi(newKey)
-	if ids[newKeyInt] == 1 {
-		fmt.Println("Duplicate Found.")
-		json.NewEncoder(w).Encode(books)
-		found = true
+	//If new key DOESNT already exist, it will have the value 0
+	if ids[newKeyInt] != 1 {
+		//ID not found, Send badrequest status code
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	fmt.Println("Found = ", found)
-	count++
-	ids[count] = 1
+
 	var book Book
+
 	// get the struct equivalent of the json
 	//and save that to our book variable
 	err := json.NewDecoder(r.Body).Decode(&book)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	book.ID = vars["id"]
-	//fmt.Println("Added ID = ", vars["id"])
-	//add the new entry to our existing book entries
-	books = append(books, book)
+	//Find the index of the book and
+	//update book entry in the correspondin index
+	//Iterate over books to find the book by id
+	for index, item := range books {
+		if item.ID == vars["id"] {
+			books[index].ID = book.ID
+			if len(book.ID) == 0 {
+				books[index].ID = vars["id"]
+			}
+			books[index].Name = book.Name
+			books[index].Author = book.Author
+			books[index].Count = book.Count
+			break
+		}
+	}
 
-	json.NewEncoder(w).Encode(books)
+	var b []Book
+	b = append(b, book)
+	json.NewEncoder(w).Encode(b)
 }
 
 // DeleteBook : Delete a book
 func DeleteBook(w http.ResponseWriter, r *http.Request) {
 	// extract parameters from URL
 	vars := mux.Vars(r)
+	//Found
+	deleted := false
 	//Iterate over books to find the book by id
 	for index, item := range books {
 		if item.ID == vars["id"] {
 			//Delete the book with matching ID
 			books = append(books[:index], books[index+1:]...)
+			//set found (bool) to be true
+			deleted = true
 			break
 		}
 	}
-	w.Header().Get("301")
 
+	if !deleted {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	//remove from ids array
+	newKeyInt, _ := strconv.Atoi(vars["id"])
+	ids[newKeyInt] = 0
+
+	//return the books
 	json.NewEncoder(w).Encode(books)
 }
 
@@ -123,4 +149,42 @@ func DeleteBook(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	log.Fatal(http.ListenAndServe(":8000", router))
+}
+
+// CreateBook : create a new book entry
+func CreateBook(w http.ResponseWriter, r *http.Request) {
+	//add a new book entry in the specified index
+	var book Book
+	// decode json to get the struct equivalent
+	//and save that to our book variable
+	err := json.NewDecoder(r.Body).Decode(&book)
+
+	//If json can not be decoded to struct, return bad request
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	//If ID field is empty, return bad request
+	if len(book.ID) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+
+	}
+	newKeyInt, _ := strconv.Atoi(book.ID)
+	if ids[newKeyInt] == 1 {
+		//Duplicate Found
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(books)
+		return
+	}
+
+	//if no duplicate exists
+
+	ids[newKeyInt] = 1
+
+	//fmt.Println("Added ID = ", vars["id"])
+	//add the new entry to our existing book entries
+	books = append(books, book)
+	json.NewEncoder(w).Encode(books)
 }
