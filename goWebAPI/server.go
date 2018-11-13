@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strconv"
 
+	flag "github.com/spf13/pflag"
+
 	"github.com/gorilla/mux"
 )
 
@@ -29,6 +31,7 @@ var books []Book
 var router = mux.NewRouter()
 var ids map[int]int
 var count = 2
+var v *bool
 
 func init() {
 	books = append(books, Book{ID: "1", Name: "Pride and Prejudice", Author: "Jane Austen", Count: 5})
@@ -47,16 +50,23 @@ func init() {
 // GetBooks : Display all books from the books variable
 func GetBooks(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(books)
-	//fmt.Println(w.Header)
+
 }
 
 // GetBook : get a single book by id
 func GetBook(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	fmt.Println("mux id = ", vars["id"])
+
+	//If ID field is empty, return bad request
+	idInt, _ := strconv.Atoi(vars["id"])
+	if len(vars["id"]) != len(strconv.Itoa(idInt)) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	//Find a match by id
 	for _, item := range books {
 		if item.ID == vars["id"] {
-			fmt.Println("Match found")
+			//add it to existing list
 			var b []Book
 			b = append(b, item)
 			json.NewEncoder(w).Encode(b)
@@ -64,10 +74,48 @@ func GetBook(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	//if no match is found,
-	// return an empty book struct
-	fmt.Println("This shoulnt be executed")
+	//fmt.Println("No Match Found")
+	w.WriteHeader(http.StatusNoContent)
+}
 
-	//json.NewEncoder(w).Encode(&Book{})
+// CreateBook : create a new book entry
+func CreateBook(w http.ResponseWriter, r *http.Request) {
+	//add a new book entry in the specified index
+	var book Book
+	// decode json to get the struct equivalent
+	//and save that to our book variable
+	err := json.NewDecoder(r.Body).Decode(&book)
+
+	//If json can not be decoded to struct, return bad request
+	if err != nil {
+		//http.Error(w, err.Error(), http.StatusBadRequest)
+
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	//If ID field is invalid, return bad request
+	newKeyInt, err := strconv.Atoi(book.ID)
+	//id is not convertable, therefore alphabatels exist
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if ids[newKeyInt] == 1 {
+		//Duplicate Found
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	//if no duplicate exists
+
+	ids[newKeyInt] = 1
+
+	//fmt.Println("Added ID = ", vars["id"])
+	//add the new entry to our existing book entries
+	books = append(books, book)
+	json.NewEncoder(w).Encode(books)
 }
 
 // UpdateBook : create a new book entry
@@ -76,21 +124,27 @@ func UpdateBook(w http.ResponseWriter, r *http.Request) {
 	// extract parameters from URL
 	vars := mux.Vars(r)
 	newKey := vars["id"]
-	newKeyInt, _ := strconv.Atoi(newKey)
-	//If new key DOESNT already exist, it will have the value 0
+	newKeyInt, err := strconv.Atoi(newKey)
+
+	//If ID field is invalid, return bad request
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	//If requested key DOESNT exist, it will have the value 0
 	if ids[newKeyInt] != 1 {
 		//ID not found, Send badrequest status code
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	var book Book
-
 	// get the struct equivalent of the json
 	//and save that to our book variable
-	err := json.NewDecoder(r.Body).Decode(&book)
+	err = json.NewDecoder(r.Body).Decode(&book)
+	//If json can not be decoded to struct, return bad request
 	if err != nil {
-		http.Error(w, err.Error(), 400)
+		//http.Error(w, err.Error(), http.StatusBadRequest)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -120,25 +174,31 @@ func UpdateBook(w http.ResponseWriter, r *http.Request) {
 func DeleteBook(w http.ResponseWriter, r *http.Request) {
 	// extract parameters from URL
 	vars := mux.Vars(r)
-	//Found
+	newKeyInt, err := strconv.Atoi(vars["id"])
+	//If ID field is invalid, return bad request
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	//initially, deleted = flase
 	deleted := false
 	//Iterate over books to find the book by id
 	for index, item := range books {
 		if item.ID == vars["id"] {
 			//Delete the book with matching ID
 			books = append(books[:index], books[index+1:]...)
-			//set found (bool) to be true
 			deleted = true
 			break
 		}
 	}
 
 	if !deleted {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusGone)
 		return
 	}
 	//remove from ids array
-	newKeyInt, _ := strconv.Atoi(vars["id"])
+
 	ids[newKeyInt] = 0
 
 	//return the books
@@ -148,43 +208,21 @@ func DeleteBook(w http.ResponseWriter, r *http.Request) {
 // main function to boot up everything
 func main() {
 
+	// f := flag.Int("f", 1234, "help message for flagname")
+	// n := flag.String("name", "John Doe", "Help mesage for NAME")
+	// //(name, shorthand,value,usage)
+	v = flag.BoolP("vFlag", "v", false, "help message")
+	flag.Lookup("vFlag").NoOptDefVal = "true"
+	flag.Parse()
+	// fmt.Println("ip has value ", *f)
+	// fmt.Println("name has value ", *n)
+	//fmt.Println("V has value ", *v)
+	if *v == true {
+		fmt.Println(*v, "Run in verbose mode")
+	} else {
+		fmt.Println("Wont run in verbose mode")
+	}
+
 	log.Fatal(http.ListenAndServe(":8000", router))
-}
 
-// CreateBook : create a new book entry
-func CreateBook(w http.ResponseWriter, r *http.Request) {
-	//add a new book entry in the specified index
-	var book Book
-	// decode json to get the struct equivalent
-	//and save that to our book variable
-	err := json.NewDecoder(r.Body).Decode(&book)
-
-	//If json can not be decoded to struct, return bad request
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	//If ID field is empty, return bad request
-	if len(book.ID) == 0 {
-		w.WriteHeader(http.StatusBadRequest)
-
-	}
-	newKeyInt, _ := strconv.Atoi(book.ID)
-	if ids[newKeyInt] == 1 {
-		//Duplicate Found
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(books)
-		return
-	}
-
-	//if no duplicate exists
-
-	ids[newKeyInt] = 1
-
-	//fmt.Println("Added ID = ", vars["id"])
-	//add the new entry to our existing book entries
-	books = append(books, book)
-	json.NewEncoder(w).Encode(books)
 }
